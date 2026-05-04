@@ -45,6 +45,8 @@ export default function TrackPage() {
 
     if (watchIdRef.current !== null) return;
 
+    setError(null);
+
     const id = navigator.geolocation.watchPosition(
       async (pos) => {
         setTracking(true);
@@ -68,6 +70,33 @@ export default function TrackPage() {
       },
       (err) => {
         setTracking(false);
+
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
+
+        if (err.code === err.PERMISSION_DENIED) {
+          setError(
+            'Location permission is turned off. Please allow location access for this site in your browser settings, then tap Try again.'
+          );
+          return;
+        }
+
+        if (err.code === err.POSITION_UNAVAILABLE) {
+          setError(
+            'Your location is currently unavailable. Please turn on Location/GPS on your phone, then tap Try again.'
+          );
+          return;
+        }
+
+        if (err.code === err.TIMEOUT) {
+          setError(
+            'GPS took too long to respond. Move somewhere with better signal, then tap Try again.'
+          );
+          return;
+        }
+
         setError(`GPS error: ${err.message}`);
       },
       {
@@ -113,7 +142,9 @@ export default function TrackPage() {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
-          <p style={{ color: '#A32D2D' }}>{error}</p>
+          <p style={{ color: '#A32D2D', lineHeight: 1.5, margin: '0 0 16px' }}>
+            {error}
+          </p>
           <button onClick={startTracking} style={primaryBtn}>
             Try again
           </button>
