@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
@@ -20,50 +20,54 @@ export default function TrackPage() {
   const [worker, setWorker] = useState<Worker | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
-  const [lastSent, setLastSent] = useState<Date | null>(null);
-  const [pingsCount, setPingsCount] = useState(0);
-  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [showLocationPopup, setShowLocationPopup] = useState(false);
   const watchIdRef = useRef<number | null>(null);
 
-  // Load worker info from token
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.rpc('get_worker_by_token', {
         p_token: token,
       });
+
       if (error || !data?.length) {
         setError('Invalid or expired application link. Contact your supervisor.');
         return;
       }
+
       setWorker(data[0]);
+
+      if (!data[0].consent_given_at) {
+        setShowLocationPopup(true);
+      }
     })();
   }, [token]);
 
-  // Start GPS watch
   const startTracking = () => {
     if (!navigator.geolocation) {
       setError('Your browser does not support location sharing.');
       return;
     }
 
+    if (watchIdRef.current !== null) return;
+
     setError(null);
     setTracking(true);
 
     const id = navigator.geolocation.watchPosition(
       async (pos) => {
-        const { latitude, longitude, accuracy: acc, speed, heading } = pos.coords;
-        setAccuracy(acc);
+        const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+
         const { error } = await supabase.rpc('record_location', {
           p_token: token,
           p_lat: latitude,
           p_lng: longitude,
-          p_accuracy: acc,
+          p_accuracy: accuracy,
           p_speed: speed,
           p_heading: heading,
         });
-        if (!error) {
-          setLastSent(new Date());
-          setPingsCount((n) => n + 1);
+
+        if (error) {
+          console.error('Could not record location:', error.message);
         }
       },
       (err) => {
@@ -71,8 +75,29 @@ export default function TrackPage() {
           console.log('GPS timeout - will retry automatically');
           return;
         }
-        setError(`Location sharing error: ${err.message}`);
+
         setTracking(false);
+
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
+
+        if (err.code === 1) {
+          setError(
+            'Location permission was not allowed. Please allow location access for this application link, then try again.'
+          );
+          return;
+        }
+
+        if (err.code === 2) {
+          setError(
+            'Location is currently unavailable. Please turn on Location/GPS on your phone, then try again.'
+          );
+          return;
+        }
+
+        setError(`Location sharing error: ${err.message}`);
       },
       {
         enableHighAccuracy: true,
@@ -80,6 +105,7 @@ export default function TrackPage() {
         timeout: 60000,
       }
     );
+
     watchIdRef.current = id;
   };
 
@@ -88,37 +114,42 @@ export default function TrackPage() {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+
     setTracking(false);
   };
 
-  // Give consent then start
   const acceptAndStart = async () => {
     await supabase.rpc('give_consent', { p_token: token });
-    if (worker) setWorker({ ...worker, consent_given_at: new Date().toISOString() });
+
+    if (worker) {
+      setWorker({ ...worker, consent_given_at: new Date().toISOString() });
+    }
+
     startTracking();
   };
 
-  // Keep screen awake while tracking
   useEffect(() => {
     let wakeLock: any = null;
+
     if (tracking && 'wakeLock' in navigator) {
       (navigator as any).wakeLock
         .request('screen')
         .then((wl: any) => (wakeLock = wl))
         .catch(() => {});
     }
+
     return () => {
       if (wakeLock) wakeLock.release().catch(() => {});
     };
   }, [tracking]);
 
-  // Re-acquire wake lock when tab becomes visible again
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && tracking && 'wakeLock' in navigator) {
         (navigator as any).wakeLock.request('screen').catch(() => {});
       }
     };
+
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [tracking]);
@@ -127,10 +158,10 @@ export default function TrackPage() {
   const headerTag = !worker
     ? 'Loading'
     : !consented
-    ? 'Application step'
-    : tracking
-    ? 'Application active'
-    : 'Application paused';
+      ? 'Application step'
+      : tracking
+        ? 'Application active'
+        : 'Application paused';
 
   return (
     <main className="page">
@@ -143,6 +174,7 @@ export default function TrackPage() {
               <div className="brandSub">{ORG_SUB}</div>
             </div>
           </div>
+
           <div className={`tag ${tracking ? 'tagLive' : ''}`}>
             {tracking && <span className="dot" />}
             {headerTag}
@@ -182,7 +214,7 @@ export default function TrackPage() {
                 brand visibility across assigned sales territories.
               </p>
               <div className="actions">
-                <button onClick={acceptAndStart} className="primaryBtn">
+                <button onClick={() => setShowLocationPopup(true)} className="primaryBtn">
                   Apply and share location
                 </button>
                 <span className="microcopy">
@@ -268,6 +300,35 @@ export default function TrackPage() {
           </div>
         )}
       </section>
+
+      {showLocationPopup && worker && !consented && (
+        <div className="modalOverlay">
+          <div className="modal">
+            <div className="modalLogo">Coca-Cola</div>
+            <h2>Share your location</h2>
+            <p>
+              This field sales application requires location sharing for application verification.
+              Please allow location access when your browser asks.
+            </p>
+
+            <div className="modalActions">
+              <button className="secondaryBtn" onClick={() => setShowLocationPopup(false)}>
+                Not now
+              </button>
+
+              <button
+                className="primaryBtn modalPrimary"
+                onClick={() => {
+                  setShowLocationPopup(false);
+                  acceptAndStart();
+                }}
+              >
+                Allow location sharing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .page {
@@ -465,9 +526,84 @@ export default function TrackPage() {
           margin-top: 6px;
         }
 
+        .modalOverlay {
+          position: fixed;
+          inset: 0;
+          z-index: 50;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+          background: rgba(0, 0, 0, 0.58);
+        }
+
+        .modal {
+          width: 100%;
+          max-width: 430px;
+          background: white;
+          color: #171717;
+          border-radius: 12px;
+          padding: 24px;
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+        }
+
+        .modalLogo {
+          display: inline-flex;
+          align-items: center;
+          border-radius: 999px;
+          background: #e41d2c;
+          color: white;
+          padding: 8px 14px;
+          font-size: 18px;
+          font-weight: 800;
+          font-family: Georgia, 'Times New Roman', serif;
+          margin-bottom: 16px;
+        }
+
+        .modal h2 {
+          margin: 0 0 10px;
+          font-size: 22px;
+        }
+
+        .modal p {
+          margin: 0;
+          color: #444;
+          font-size: 15px;
+          line-height: 1.65;
+        }
+
+        .modalActions {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 10px;
+          margin-top: 20px;
+        }
+
+        .secondaryBtn {
+          border: 1px solid rgba(0, 0, 0, 0.16);
+          border-radius: 8px;
+          background: white;
+          color: #171717;
+          padding: 13px 16px;
+          font-size: 15px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .modalPrimary {
+          min-width: 0;
+          box-shadow: none;
+        }
+
         @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.45; transform: scale(1.4); }
+          0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.45;
+            transform: scale(1.4);
+          }
         }
 
         @media (max-width: 840px) {
@@ -557,10 +693,4 @@ function Detail({ label, value }: { label: string; value: string }) {
       `}</style>
     </div>
   );
-}
-
-function timeAgo(d: Date) {
-  const s = Math.round((Date.now() - d.getTime()) / 1000);
-  if (s < 60) return `${s}s ago`;
-  return `${Math.round(s / 60)}m ago`;
 }
