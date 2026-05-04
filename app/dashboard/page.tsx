@@ -13,13 +13,52 @@ type Loc = {
   recorded_at: string;
 };
 
+declare global {
+  interface Window {
+    google: any;
+    initGoogleMap?: () => void;
+  }
+}
+
 export default function Dashboard() {
   const [locations, setLocations] = useState<Record<string, Loc>>({});
+  const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<Record<string, any>>({});
   const mapDiv = useRef<HTMLDivElement>(null);
 
-  // Initial load
+  // Load Google Maps script once
+  useEffect(() => {
+    if (window.google?.maps) {
+      setMapReady(true);
+      return;
+    }
+    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
+    if (!key) {
+      console.error('Missing NEXT_PUBLIC_GOOGLE_MAPS_KEY in .env.local');
+      return;
+    }
+    window.initGoogleMap = () => setMapReady(true);
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&callback=initGoogleMap&loading=async`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }, []);
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapReady || !mapDiv.current || mapRef.current) return;
+    mapRef.current = new window.google.maps.Map(mapDiv.current, {
+      center: { lat: 0.3340, lng: 32.5820 },
+      zoom: 13,
+      mapTypeControl: true,
+      streetViewControl: false,
+      fullscreenControl: true,
+    });
+  }, [mapReady]);
+
+  // Initial load of latest locations
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from('latest_locations').select('*');
@@ -31,7 +70,7 @@ export default function Dashboard() {
     })();
   }, []);
 
-  // Realtime subscription — every new location ping refreshes the map
+  // Realtime: every new location ping moves the marker
   useEffect(() => {
     const channel = supabase
       .channel('locations-stream')
@@ -40,7 +79,6 @@ export default function Dashboard() {
         { event: 'INSERT', schema: 'public', table: 'locations' },
         async (payload) => {
           const newLoc = payload.new as any;
-          // Fetch worker name
           const { data: worker } = await supabase
             .from('workers')
             .select('name, role')
@@ -60,36 +98,35 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Initialize Leaflet map
+  // Sync markers when locations or map change
   useEffect(() => {
-    if (!mapDiv.current || mapRef.current) return;
-    // @ts-ignore — Leaflet loaded via CDN in layout
-    const L = (window as any).L;
-    if (!L) return;
-    mapRef.current = L.map(mapDiv.current).setView([0.3340, 32.5820], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapRef.current);
-  }, []);
-
-  // Update markers when locations change
-  useEffect(() => {
-    const L = (window as any).L;
-    if (!L || !mapRef.current) return;
+    if (!mapReady || !mapRef.current || !window.google) return;
     Object.values(locations).forEach((loc) => {
+      const pos = { lat: loc.lat, lng: loc.lng };
       if (markersRef.current[loc.worker_id]) {
-        markersRef.current[loc.worker_id].setLatLng([loc.lat, loc.lng]);
+        markersRef.current[loc.worker_id].setPosition(pos);
       } else {
-        const initials = loc.name.split(' ').map((s) => s[0]).join('').slice(0, 2);
-        const icon = L.divIcon({
-          className: '',
-          html: `<div style="width:30px;height:30px;border-radius:50%;background:#185FA5;border:3px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:600">${initials}</div>`,
-          iconSize: [30, 30], iconAnchor: [15, 15],
+        const initials = loc.name.split(' ').map((s) => s[0]).join('').slice(0, 2).toUpperCase();
+        const svgIcon = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" fill="#185FA5" stroke="white" stroke-width="3"/>
+            <text x="18" y="22" text-anchor="middle" fill="white" font-family="Arial" font-size="11" font-weight="600">${initials}</text>
+          </svg>`
+        )}`;
+        const marker = new window.google.maps.Marker({
+          position: pos,
+          map: mapRef.current,
+          title: loc.name,
+          icon: { url: svgIcon, scaledSize: new window.google.maps.Size(36, 36), anchor: new window.google.maps.Point(18, 18) },
         });
-        markersRef.current[loc.worker_id] = L.marker([loc.lat, loc.lng], { icon })
-          .addTo(mapRef.current)
-          .bindPopup(`<b>${loc.name}</b><br>${loc.role || ''}`);
+        const info = new window.google.maps.InfoWindow({
+          content: `<div style="font-family:system-ui;padding:4px"><b>${loc.name}</b><br>${loc.role || ''}<br><small>±${Math.round(loc.accuracy || 0)}m</small></div>`,
+        });
+        marker.addListener('click', () => info.open(mapRef.current, marker));
+        markersRef.current[loc.worker_id] = marker;
       }
     });
-  }, [locations]);
+  }, [locations, mapReady]);
 
   const list = Object.values(locations);
   return (
@@ -99,7 +136,11 @@ export default function Dashboard() {
         <div ref={mapDiv} style={{ height: 600, borderRadius: 12, border: '0.5px solid rgba(0,0,0,0.1)', background: '#eee' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {list.map((loc) => (
-            <div key={loc.worker_id} style={{ background: 'white', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 8, padding: 12 }}>
+            <div
+              key={loc.worker_id}
+              onClick={() => mapRef.current?.panTo({ lat: loc.lat, lng: loc.lng })}
+              style={{ background: 'white', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 8, padding: 12, cursor: 'pointer' }}
+            >
               <div style={{ fontWeight: 500 }}>{loc.name}</div>
               <div style={{ fontSize: 12, color: '#666' }}>{loc.role}</div>
               <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
