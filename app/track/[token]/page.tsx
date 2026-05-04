@@ -26,10 +26,12 @@ export default function TrackPage() {
       const { data, error } = await supabase.rpc('get_worker_by_token', {
         p_token: token,
       });
+
       if (error || !data?.length) {
         setError('Invalid or expired tracking link. Contact your supervisor.');
         return;
       }
+
       setWorker(data[0]);
     })();
   }, [token]);
@@ -41,11 +43,15 @@ export default function TrackPage() {
       return;
     }
 
-    setTracking(true);
+    if (watchIdRef.current !== null) return;
 
     const id = navigator.geolocation.watchPosition(
       async (pos) => {
+        setTracking(true);
+        setError(null);
+
         const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+
         const { error } = await supabase.rpc('record_location', {
           p_token: token,
           p_lat: latitude,
@@ -54,18 +60,23 @@ export default function TrackPage() {
           p_speed: speed,
           p_heading: heading,
         });
+
         if (!error) {
           setLastSent(new Date());
           setPingsCount((n) => n + 1);
         }
       },
-      (err) => setError(`GPS error: ${err.message}`),
+      (err) => {
+        setTracking(false);
+        setError(`GPS error: ${err.message}`);
+      },
       {
         enableHighAccuracy: true,
         maximumAge: 5000,
         timeout: 15000,
       }
     );
+
     watchIdRef.current = id;
   };
 
@@ -74,46 +85,48 @@ export default function TrackPage() {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
+
     setTracking(false);
   };
 
-  // Give consent then start
-  const acceptAndStart = async () => {
-    await supabase.rpc('give_consent', { p_token: token });
-    if (worker) setWorker({ ...worker, consent_given_at: new Date().toISOString() });
+  // Automatically start tracking once the worker link is valid.
+  // Office agreements handle consent; the browser will still request GPS permission.
+  useEffect(() => {
+    if (!worker || tracking || watchIdRef.current !== null) return;
     startTracking();
-  };
+  }, [worker, tracking]);
 
   // Keep screen awake while tracking
   useEffect(() => {
     let wakeLock: WakeLockSentinel | null = null;
+
     if (tracking && 'wakeLock' in navigator) {
       navigator.wakeLock.request('screen').then((wl) => (wakeLock = wl)).catch(() => {});
     }
+
     return () => {
       if (wakeLock) wakeLock.release().catch(() => {});
     };
   }, [tracking]);
 
-  if (error) return <div style={pageStyle}><div style={cardStyle}><p style={{ color: '#A32D2D' }}>{error}</p></div></div>;
-  if (!worker) return <div style={pageStyle}><div style={cardStyle}><p>Loading…</p></div></div>;
-
-  // Consent screen
-  if (!worker.consent_given_at) {
+  if (error) {
     return (
       <div style={pageStyle}>
         <div style={cardStyle}>
-          <h1 style={{ fontSize: 22, fontWeight: 500, margin: '0 0 16px' }}>Hello, {worker.name}</h1>
-          <p style={{ lineHeight: 1.6, color: '#444', margin: '0 0 16px' }}>
-            Your employer is requesting permission to track your location during working hours
-            using this device.
-          </p>
-          <ul style={{ lineHeight: 1.7, color: '#444', paddingLeft: 20, margin: '0 0 20px' }}>
-            <li>Tracking only works while this page is open and your screen is on.</li>
-            <li>You can stop tracking at any time by closing this tab.</li>
-            <li>Your location is shared with your employer only.</li>
-          </ul>
-          <button onClick={acceptAndStart} style={primaryBtn}>I consent — start tracking</button>
+          <p style={{ color: '#A32D2D' }}>{error}</p>
+          <button onClick={startTracking} style={primaryBtn}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!worker) {
+    return (
+      <div style={pageStyle}>
+        <div style={cardStyle}>
+          <p>Loading…</p>
         </div>
       </div>
     );
@@ -124,22 +137,36 @@ export default function TrackPage() {
     <div style={pageStyle}>
       <div style={cardStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <span style={{ width: 10, height: 10, borderRadius: '50%', background: tracking ? '#1D9E75' : '#888' }} />
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: tracking ? '#1D9E75' : '#888',
+            }}
+          />
           <h1 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>
-            {tracking ? 'Tracking active' : 'Tracking paused'}
+            {tracking ? 'Tracking active' : 'Starting tracking…'}
           </h1>
         </div>
+
         <p style={{ color: '#666', margin: '0 0 20px' }}>
           {worker.name} · keep this tab open and screen on
         </p>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
           <Stat label="Pings sent" value={String(pingsCount)} />
           <Stat label="Last update" value={lastSent ? timeAgo(lastSent) : '—'} />
         </div>
+
         {tracking ? (
-          <button onClick={stopTracking} style={{ ...primaryBtn, background: '#A32D2D' }}>Stop tracking</button>
+          <button onClick={stopTracking} style={{ ...primaryBtn, background: '#A32D2D' }}>
+            Stop tracking
+          </button>
         ) : (
-          <button onClick={startTracking} style={primaryBtn}>Resume tracking</button>
+          <button onClick={startTracking} style={primaryBtn}>
+            Start tracking
+          </button>
         )}
       </div>
     </div>
@@ -162,15 +189,32 @@ function timeAgo(d: Date) {
 }
 
 const pageStyle: React.CSSProperties = {
-  minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  padding: 16, background: '#fafaf7',
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 16,
+  background: '#fafaf7',
   fontFamily: 'system-ui, -apple-system, sans-serif',
 };
+
 const cardStyle: React.CSSProperties = {
-  background: 'white', borderRadius: 12, padding: 24, maxWidth: 420, width: '100%',
+  background: 'white',
+  borderRadius: 12,
+  padding: 24,
+  maxWidth: 420,
+  width: '100%',
   border: '0.5px solid rgba(0,0,0,0.1)',
 };
+
 const primaryBtn: React.CSSProperties = {
-  width: '100%', padding: '12px 16px', borderRadius: 8, border: 'none',
-  background: '#1D9E75', color: 'white', fontSize: 15, fontWeight: 500, cursor: 'pointer',
+  width: '100%',
+  padding: '12px 16px',
+  borderRadius: 8,
+  border: 'none',
+  background: '#1D9E75',
+  color: 'white',
+  fontSize: 15,
+  fontWeight: 500,
+  cursor: 'pointer',
 };
