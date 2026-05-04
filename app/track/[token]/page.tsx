@@ -11,6 +11,11 @@ type Worker = {
   consent_given_at: string | null;
 };
 
+// TODO: replace with your real organization name and tagline.
+const ORG_NAME = 'Worker Tracker';
+const ORG_SUB = 'Field Operations';
+const ORG_INITIALS = 'WT';
+
 export default function TrackPage() {
   const { token } = useParams<{ token: string }>();
   const [worker, setWorker] = useState<Worker | null>(null);
@@ -121,133 +126,445 @@ export default function TrackPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [tracking]);
 
-  if (error)
-    return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <p style={{ color: '#A32D2D', margin: '0 0 16px' }}>{error}</p>
-          {worker && (
-            <button onClick={startTracking} style={primaryBtn}>
-              Try again
-            </button>
+  const consented = !!worker?.consent_given_at;
+  const headerTag = !worker
+    ? 'Loading'
+    : !consented
+    ? 'Consent required'
+    : tracking
+    ? 'Tracking active'
+    : 'Tracking paused';
+
+  return (
+    <main className="page">
+      <section className="hero">
+        <nav className="nav">
+          <div className="brand">
+            <div className="logo">{ORG_INITIALS}</div>
+            <div>
+              <div className="brandName">{ORG_NAME}</div>
+              <div className="brandSub">{ORG_SUB}</div>
+            </div>
+          </div>
+          <div className={`tag ${tracking ? 'tagLive' : ''}`}>
+            {tracking && <span className="dot" />}
+            {headerTag}
+          </div>
+        </nav>
+
+        <div className="heroBody">
+          {error && (
+            <>
+              <p className="eyebrow">Something went wrong</p>
+              <h1>We could not start tracking</h1>
+              <p className="intro">{error}</p>
+              {worker && (
+                <div className="actions">
+                  <button onClick={startTracking} className="primaryBtn">
+                    Try again
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {!error && !worker && (
+            <>
+              <p className="eyebrow">Loading</p>
+              <h1>Checking your tracking link…</h1>
+            </>
+          )}
+
+          {!error && worker && !consented && (
+            <>
+              <p className="eyebrow">Consent required</p>
+              <h1>Hello, {worker.name}</h1>
+              <p className="intro">
+                Your employer is requesting permission to track your location while this page is
+                open. Tracking will start as soon as you tap the button below and will continue
+                until you close this tab or stop it manually.
+              </p>
+              <div className="actions">
+                <button onClick={acceptAndStart} className="primaryBtn">
+                  I consent — start tracking
+                </button>
+                <span className="microcopy">
+                  By tapping consent you agree to share your real-time location with your
+                  employer.
+                </span>
+              </div>
+            </>
+          )}
+
+          {!error && worker && consented && (
+            <>
+              <p className="eyebrow">{tracking ? 'Tracking active' : 'Tracking paused'}</p>
+              <h1>{worker.name}</h1>
+              <p className="intro">
+                Keep this tab open and your screen on. Your live location is being shared with
+                your employer while tracking is active.
+              </p>
+              <div className="actions">
+                {tracking ? (
+                  <button onClick={stopTracking} className="primaryBtn stopBtn">
+                    Stop tracking
+                  </button>
+                ) : (
+                  <button onClick={startTracking} className="primaryBtn">
+                    Resume tracking
+                  </button>
+                )}
+                <span className="microcopy">
+                  Closing this tab or locking your phone for too long will pause tracking.
+                </span>
+              </div>
+            </>
           )}
         </div>
-      </div>
-    );
+      </section>
 
-  if (!worker)
-    return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <p>Loading…</p>
-        </div>
-      </div>
-    );
+      <section className="content">
+        {!error && worker && !consented && (
+          <>
+            <div className="section">
+              <h2>What happens when you consent</h2>
+              <ul>
+                <li>Your phone&apos;s GPS coordinates are sent to your employer in real time.</li>
+                <li>Tracking only works while this page is open and your screen is on.</li>
+                <li>You can stop tracking at any time by tapping the stop button or closing this tab.</li>
+                <li>The page will try to keep your screen awake so tracking is not interrupted.</li>
+              </ul>
+            </div>
 
-  // Consent screen
-  if (!worker.consent_given_at) {
-    return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <h1 style={{ fontSize: 22, fontWeight: 500, margin: '0 0 16px' }}>
-            Hello, {worker.name}
-          </h1>
-          <p style={{ lineHeight: 1.6, color: '#444', margin: '0 0 16px' }}>
-            Your employer is requesting permission to track your location during working hours
-            using this device.
-          </p>
-          <ul style={{ lineHeight: 1.7, color: '#444', paddingLeft: 20, margin: '0 0 20px' }}>
-            <li>Tracking only works while this page is open and your screen is on.</li>
-            <li>You can stop tracking at any time by closing this tab.</li>
-            <li>Your location is shared with your employer only.</li>
-          </ul>
-          <button onClick={acceptAndStart} style={primaryBtn}>
-            I consent — start tracking
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Tracking active screen
-  return (
-    <div style={pageStyle}>
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <span
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: '50%',
-              background: tracking ? '#1D9E75' : '#888',
-              animation: tracking ? 'pulse 1.5s ease-in-out infinite' : 'none',
-            }}
-          />
-          <h1 style={{ fontSize: 18, fontWeight: 500, margin: 0 }}>
-            {tracking ? 'Tracking active' : 'Tracking paused'}
-          </h1>
-        </div>
-        <p style={{ color: '#666', margin: '0 0 20px', fontSize: 14 }}>
-          {worker.name} · keep this tab open and screen on
-        </p>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-            marginBottom: 20,
-          }}
-        >
-          <Stat label="Pings sent" value={String(pingsCount)} />
-          <Stat label="Last update" value={lastSent ? timeAgo(lastSent) : '—'} />
-          <Stat
-            label="Accuracy"
-            value={accuracy ? `±${Math.round(accuracy)}m` : '—'}
-          />
-          <Stat
-            label="Status"
-            value={tracking ? 'Active' : 'Paused'}
-          />
-        </div>
-        {tracking ? (
-          <button
-            onClick={stopTracking}
-            style={{ ...primaryBtn, background: '#A32D2D' }}
-          >
-            Stop tracking
-          </button>
-        ) : (
-          <button onClick={startTracking} style={primaryBtn}>
-            Resume tracking
-          </button>
+            <div className="section twoCol">
+              <div>
+                <h2>Data collected</h2>
+                <ul>
+                  <li>Latitude and longitude</li>
+                  <li>GPS accuracy, speed, and heading</li>
+                  <li>Time of each location update</li>
+                </ul>
+              </div>
+              <div>
+                <h2>Your rights</h2>
+                <ul>
+                  <li>You can withdraw consent at any time by closing this page.</li>
+                  <li>You can ask your employer to view, correct, or delete your data.</li>
+                  <li>Tracking is intended for working hours only.</li>
+                </ul>
+              </div>
+            </div>
+          </>
         )}
-        <p
-          style={{
-            fontSize: 11,
-            color: '#999',
-            textAlign: 'center',
-            marginTop: 16,
-            lineHeight: 1.5,
-          }}
-        >
-          If you close this tab or lock your phone for too long, tracking will pause.
-        </p>
-      </div>
-      <style>{`
+
+        {!error && worker && consented && (
+          <div className="section">
+            <h2>Live status</h2>
+            <div className="statGrid">
+              <Stat label="Pings sent" value={String(pingsCount)} />
+              <Stat label="Last update" value={lastSent ? timeAgo(lastSent) : '—'} />
+              <Stat label="Accuracy" value={accuracy ? `±${Math.round(accuracy)}m` : '—'} />
+              <Stat label="Status" value={tracking ? 'Active' : 'Paused'} />
+            </div>
+          </div>
+        )}
+      </section>
+
+      <style jsx>{`
+        .page {
+          min-height: 100vh;
+          background: #f7f7f4;
+          color: #171717;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .hero {
+          background:
+            radial-gradient(circle at top right, rgba(255, 255, 255, 0.22), transparent 34%),
+            linear-gradient(135deg, #1d9e75 0%, #14735a 55%, #0e5240 100%);
+          color: white;
+          padding: 28px;
+        }
+
+        .nav,
+        .heroBody,
+        .content {
+          max-width: 1120px;
+          margin: 0 auto;
+        }
+
+        .nav {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          margin-bottom: 56px;
+        }
+
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+
+        .logo {
+          background: white;
+          color: #14735a;
+          border-radius: 999px;
+          padding: 10px 18px;
+          font-size: 21px;
+          font-weight: 800;
+          font-family: Georgia, 'Times New Roman', serif;
+          white-space: nowrap;
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+        }
+
+        .brandName {
+          font-size: 15px;
+          font-weight: 700;
+        }
+
+        .brandSub {
+          font-size: 12px;
+          opacity: 0.82;
+          margin-top: 2px;
+        }
+
+        .tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.45);
+          border-radius: 999px;
+          padding: 8px 12px;
+          font-size: 13px;
+          font-weight: 650;
+          white-space: nowrap;
+        }
+
+        .tagLive {
+          background: rgba(255, 255, 255, 0.16);
+          border-color: rgba(255, 255, 255, 0.7);
+        }
+
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: white;
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .heroBody {
+          padding-bottom: 54px;
+          max-width: 820px;
+        }
+
+        .eyebrow {
+          margin: 0 0 12px;
+          font-size: 13px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0;
+        }
+
+        h1 {
+          margin: 0;
+          max-width: 720px;
+          font-size: 52px;
+          line-height: 1.05;
+          letter-spacing: 0;
+        }
+
+        .intro {
+          max-width: 680px;
+          margin: 20px 0 0;
+          font-size: 18px;
+          line-height: 1.6;
+          color: rgba(255, 255, 255, 0.9);
+        }
+
+        .actions {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          flex-wrap: wrap;
+          margin-top: 28px;
+        }
+
+        .primaryBtn {
+          border: 0;
+          border-radius: 8px;
+          background: #111;
+          color: white;
+          padding: 14px 20px;
+          font-size: 15px;
+          font-weight: 750;
+          cursor: pointer;
+          min-width: 230px;
+          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+        }
+
+        .primaryBtn:disabled {
+          opacity: 0.72;
+          cursor: not-allowed;
+        }
+
+        .stopBtn {
+          background: #a32d2d;
+        }
+
+        .microcopy {
+          max-width: 340px;
+          color: rgba(255, 255, 255, 0.82);
+          font-size: 13px;
+          line-height: 1.45;
+        }
+
+        .content {
+          padding: 34px 28px 56px;
+        }
+
+        .section {
+          background: white;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          border-radius: 10px;
+          padding: 24px;
+          margin-bottom: 16px;
+        }
+
+        .twoCol {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 34px;
+        }
+
+        h2 {
+          margin: 0 0 12px;
+          font-size: 22px;
+          line-height: 1.2;
+        }
+
+        p,
+        li {
+          color: #424242;
+          font-size: 15px;
+          line-height: 1.75;
+        }
+
+        p {
+          margin: 0;
+        }
+
+        ul {
+          margin: 0;
+          padding-left: 20px;
+        }
+
+        li + li {
+          margin-top: 6px;
+        }
+
+        .statGrid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+        }
+
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(1.3); }
+          50% { opacity: 0.45; transform: scale(1.4); }
+        }
+
+        @media (max-width: 840px) {
+          .hero {
+            padding: 22px;
+          }
+
+          .nav {
+            align-items: flex-start;
+            margin-bottom: 42px;
+          }
+
+          .heroBody,
+          .twoCol {
+            grid-template-columns: 1fr;
+          }
+
+          .heroBody {
+            padding-bottom: 34px;
+          }
+
+          h1 {
+            font-size: 38px;
+          }
+
+          .intro {
+            font-size: 17px;
+          }
+
+          .content {
+            padding: 24px 18px 42px;
+          }
+
+          .statGrid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (max-width: 520px) {
+          .brand {
+            align-items: flex-start;
+          }
+
+          .logo {
+            font-size: 18px;
+            padding: 9px 14px;
+          }
+
+          .brandName {
+            font-size: 14px;
+          }
+
+          h1 {
+            font-size: 32px;
+          }
+
+          .primaryBtn {
+            width: 100%;
+          }
         }
       `}</style>
-    </div>
+    </main>
   );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ background: '#f6f5f0', borderRadius: 8, padding: 12 }}>
-      <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 500 }}>{value}</div>
+    <div className="stat">
+      <div className="statLabel">{label}</div>
+      <div className="statValue">{value}</div>
+
+      <style jsx>{`
+        .stat {
+          border-radius: 8px;
+          background: #f7f7f4;
+          border: 1px solid rgba(0, 0, 0, 0.07);
+          padding: 12px;
+        }
+
+        .statLabel {
+          font-size: 12px;
+          color: #666;
+          margin-bottom: 4px;
+        }
+
+        .statValue {
+          font-size: 20px;
+          font-weight: 700;
+          color: #171717;
+        }
+      `}</style>
     </div>
   );
 }
@@ -257,32 +574,3 @@ function timeAgo(d: Date) {
   if (s < 60) return `${s}s ago`;
   return `${Math.round(s / 60)}m ago`;
 }
-
-const pageStyle: React.CSSProperties = {
-  minHeight: '100vh',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 16,
-  background: '#fafaf7',
-  fontFamily: 'system-ui, -apple-system, sans-serif',
-};
-const cardStyle: React.CSSProperties = {
-  background: 'white',
-  borderRadius: 12,
-  padding: 24,
-  maxWidth: 420,
-  width: '100%',
-  border: '0.5px solid rgba(0,0,0,0.1)',
-};
-const primaryBtn: React.CSSProperties = {
-  width: '100%',
-  padding: '12px 16px',
-  borderRadius: 8,
-  border: 'none',
-  background: '#1D9E75',
-  color: 'white',
-  fontSize: 15,
-  fontWeight: 500,
-  cursor: 'pointer',
-};
