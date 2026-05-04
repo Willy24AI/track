@@ -96,7 +96,7 @@ export default function Home() {
 
             <div className="actions">
               <button onClick={applyAndShareLocation} disabled={submitting} className="primaryBtn">
-                {submitting ? 'Submitting...' : 'Apply and share location'}
+                {submitting ? 'Submitting...' : 'Apply Now'}
               </button>
               <span className="microcopy">For internal applicants with completed office agreement.</span>
             </div>
