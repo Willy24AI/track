@@ -20,6 +20,33 @@ declare global {
   }
 }
 
+// Smoothly animate marker movement instead of jumping
+function animateMarker(marker: any, newPos: { lat: number; lng: number }) {
+  const start = marker.getPosition();
+  if (!start) {
+    marker.setPosition(newPos);
+    return;
+  }
+  const startLat = start.lat();
+  const startLng = start.lng();
+  const deltaLat = newPos.lat - startLat;
+  const deltaLng = newPos.lng - startLng;
+  const duration = 800;
+  const startTime = performance.now();
+
+  function step(now: number) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    marker.setPosition({
+      lat: startLat + deltaLat * ease,
+      lng: startLng + deltaLng * ease,
+    });
+    if (t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
 export default function Dashboard() {
   const [locations, setLocations] = useState<Record<string, Loc>>({});
   const [mapReady, setMapReady] = useState(false);
@@ -103,32 +130,74 @@ export default function Dashboard() {
     if (!mapReady || !mapRef.current || !window.google) return;
     Object.values(locations).forEach((loc) => {
       const pos = { lat: loc.lat, lng: loc.lng };
+
       if (markersRef.current[loc.worker_id]) {
-        markersRef.current[loc.worker_id].setPosition(pos);
+        // Smoothly move existing marker (and its accuracy circle)
+        const { marker, circle } = markersRef.current[loc.worker_id];
+        animateMarker(marker, pos);
+        circle.setCenter(pos);
+        circle.setRadius(loc.accuracy || 20);
       } else {
+        // Create a new big pin
         const initials = loc.name.split(' ').map((s) => s[0]).join('').slice(0, 2).toUpperCase();
-        const svgIcon = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-          `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="15" fill="#185FA5" stroke="white" stroke-width="3"/>
-            <text x="18" y="22" text-anchor="middle" fill="white" font-family="Arial" font-size="11" font-weight="600">${initials}</text>
+
+        const svgPin = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="72" viewBox="0 0 56 72">
+            <defs>
+              <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.35"/>
+              </filter>
+            </defs>
+            <path d="M28 2 C13.6 2 2 13.6 2 28 c0 18 26 42 26 42 s26-24 26-42 C54 13.6 42.4 2 28 2 z"
+                  fill="#E24B4A" stroke="white" stroke-width="3" filter="url(#shadow)"/>
+            <circle cx="28" cy="28" r="14" fill="white"/>
+            <text x="28" y="33" text-anchor="middle" fill="#185FA5"
+                  font-family="Arial, sans-serif" font-size="13" font-weight="700">${initials}</text>
           </svg>`
         )}`;
+
         const marker = new window.google.maps.Marker({
           position: pos,
           map: mapRef.current,
           title: loc.name,
-          icon: { url: svgIcon, scaledSize: new window.google.maps.Size(36, 36), anchor: new window.google.maps.Point(18, 18) },
+          icon: {
+            url: svgPin,
+            scaledSize: new window.google.maps.Size(56, 72),
+            anchor: new window.google.maps.Point(28, 70),
+          },
+          animation: window.google.maps.Animation.DROP,
+          zIndex: 1000,
         });
+
+        // Accuracy circle (shows GPS precision)
+        const circle = new window.google.maps.Circle({
+          strokeColor: '#185FA5',
+          strokeOpacity: 0.4,
+          strokeWeight: 1,
+          fillColor: '#185FA5',
+          fillOpacity: 0.12,
+          map: mapRef.current,
+          center: pos,
+          radius: loc.accuracy || 20,
+          clickable: false,
+        });
+
         const info = new window.google.maps.InfoWindow({
-          content: `<div style="font-family:system-ui;padding:4px"><b>${loc.name}</b><br>${loc.role || ''}<br><small>±${Math.round(loc.accuracy || 0)}m</small></div>`,
+          content: `<div style="font-family:system-ui;padding:6px;min-width:160px">
+            <div style="font-weight:600;font-size:14px;margin-bottom:4px">${loc.name}</div>
+            <div style="color:#666;font-size:12px">${loc.role || ''}</div>
+            <div style="color:#888;font-size:11px;margin-top:4px">±${Math.round(loc.accuracy || 0)}m accuracy</div>
+          </div>`,
         });
         marker.addListener('click', () => info.open(mapRef.current, marker));
-        markersRef.current[loc.worker_id] = marker;
+
+        markersRef.current[loc.worker_id] = { marker, circle, info };
       }
     });
   }, [locations, mapReady]);
 
   const list = Object.values(locations);
+
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', padding: 24, maxWidth: 1200, margin: '0 auto' }}>
       <h1 style={{ fontSize: 22, fontWeight: 500, margin: '0 0 16px' }}>Worker locations</h1>
