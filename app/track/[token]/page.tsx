@@ -11,10 +11,9 @@ type Worker = {
   consent_given_at: string | null;
 };
 
-// TODO: replace with your real organization name and tagline.
-const ORG_NAME = 'Worker Tracker';
+const ORG_NAME = 'Mbarara Distribution Limited';
 const ORG_SUB = 'Field Operations';
-const ORG_INITIALS = 'WT';
+const ORG_INITIALS = 'MDL';
 
 export default function TrackPage() {
   const { token } = useParams<{ token: string }>();
