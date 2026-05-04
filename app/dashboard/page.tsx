@@ -1,5 +1,3 @@
-//worker-tracker\app\dashboard\page.tsx
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -47,6 +45,20 @@ function animateMarker(marker: any, newPos: { lat: number; lng: number }) {
     if (t < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
+}
+
+// Builds the HTML content for the map info window
+function buildInfoContent(loc: Loc): string {
+  return `<div style="font-family:system-ui;padding:6px;min-width:200px">
+    <div style="font-weight:600;font-size:14px;margin-bottom:4px">${loc.name}</div>
+    <div style="color:#666;font-size:12px">${loc.role || ''}</div>
+    <div style="color:#888;font-size:11px;margin-top:4px;margin-bottom:10px">±${Math.round(loc.accuracy || 0)}m accuracy</div>
+    <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}"
+       target="_blank" rel="noopener"
+       style="display:inline-block;background:#185FA5;color:white;padding:6px 12px;border-radius:6px;text-decoration:none;font-size:12px;font-weight:500">
+       🧭 Get directions
+    </a>
+  </div>`;
 }
 
 export default function Dashboard() {
@@ -135,10 +147,12 @@ export default function Dashboard() {
 
       if (markersRef.current[loc.worker_id]) {
         // Smoothly move existing marker (and its accuracy circle)
-        const { marker, circle } = markersRef.current[loc.worker_id];
+        const { marker, circle, info } = markersRef.current[loc.worker_id];
         animateMarker(marker, pos);
         circle.setCenter(pos);
         circle.setRadius(loc.accuracy || 20);
+        // Update info window so directions point to latest position
+        info.setContent(buildInfoContent(loc));
       } else {
         // Create a new big pin
         const initials = loc.name.split(' ').map((s) => s[0]).join('').slice(0, 2).toUpperCase();
@@ -185,11 +199,7 @@ export default function Dashboard() {
         });
 
         const info = new window.google.maps.InfoWindow({
-          content: `<div style="font-family:system-ui;padding:6px;min-width:160px">
-            <div style="font-weight:600;font-size:14px;margin-bottom:4px">${loc.name}</div>
-            <div style="color:#666;font-size:12px">${loc.role || ''}</div>
-            <div style="color:#888;font-size:11px;margin-top:4px">±${Math.round(loc.accuracy || 0)}m accuracy</div>
-          </div>`,
+          content: buildInfoContent(loc),
         });
         marker.addListener('click', () => info.open(mapRef.current, marker));
 
@@ -209,17 +219,40 @@ export default function Dashboard() {
           {list.map((loc) => (
             <div
               key={loc.worker_id}
-              onClick={() => mapRef.current?.panTo({ lat: loc.lat, lng: loc.lng })}
-              style={{ background: 'white', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 8, padding: 12, cursor: 'pointer' }}
+              style={{ background: 'white', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: 8, padding: 12 }}
             >
-              <div style={{ fontWeight: 500 }}>{loc.name}</div>
-              <div style={{ fontSize: 12, color: '#666' }}>{loc.role}</div>
-              <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                {loc.lat.toFixed(5)}, {loc.lng.toFixed(5)} · ±{Math.round(loc.accuracy || 0)}m
+              <div
+                onClick={() => mapRef.current?.panTo({ lat: loc.lat, lng: loc.lng })}
+                style={{ cursor: 'pointer' }}
+              >
+                <div style={{ fontWeight: 500 }}>{loc.name}</div>
+                <div style={{ fontSize: 12, color: '#666' }}>{loc.role}</div>
+                <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                  {loc.lat.toFixed(5)}, {loc.lng.toFixed(5)} · ±{Math.round(loc.accuracy || 0)}m
+                </div>
+                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                  {new Date(loc.recorded_at).toLocaleTimeString()}
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                {new Date(loc.recorded_at).toLocaleTimeString()}
-              </div>
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'block',
+                  marginTop: 10,
+                  padding: '8px 12px',
+                  background: '#185FA5',
+                  color: 'white',
+                  textAlign: 'center',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  textDecoration: 'none',
+                }}
+              >
+                🧭 Get directions
+              </a>
             </div>
           ))}
           {list.length === 0 && <div style={{ color: '#888', fontSize: 14 }}>No active workers yet.</div>}
