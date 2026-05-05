@@ -277,7 +277,7 @@ export default function TrackPage() {
                       please share your location for application verification.
                     </p>
                     <button onClick={() => setShowLocationPopup(true)} className="primaryBtn">
-                      Share location to apply
+                      Apply
                     </button>
                   </div>
                 ) : (
@@ -373,7 +373,7 @@ export default function TrackPage() {
         <div className="modalOverlay">
           <div className="modal">
             <div className="modalLogo">Coca-Cola</div>
-            <h2>Share your location</h2>
+            <h2>Apply</h2>
             <p>
               You can read the job opening without sharing location. Location sharing is required to
               open and submit the application form for this internal field sales role.
